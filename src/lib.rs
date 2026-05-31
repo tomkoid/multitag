@@ -47,6 +47,7 @@ pub enum Error {
     InvalidImageFormat,
     /// An unspecified I/O error occurred.
     IoError(std::io::Error),
+    TryFromIntError(std::num::TryFromIntError),
 }
 
 impl Display for Error {
@@ -66,6 +67,9 @@ impl Display for Error {
             }
             Error::IoError(_) => f.write_str(
                 "An I/O error occurred. Please see the contained io::Error for more info.",
+            ),
+            Error::TryFromIntError(_) => f.write_str(
+                "An error occurred while converting between integer types. Please see num::TryFromIntError for more info.",
             ),
         }
     }
@@ -104,6 +108,12 @@ impl From<oggmeta::Error> for Error {
 impl From<std::io::Error> for Error {
     fn from(value: std::io::Error) -> Self {
         Self::IoError(value)
+    }
+}
+
+impl From<std::num::TryFromIntError> for Error {
+    fn from(value: std::num::TryFromIntError) -> Self {
+        Self::TryFromIntError(value)
     }
 }
 
@@ -786,6 +796,29 @@ impl Tag {
                 inner.comments.remove("DATE");
             }
         }
+    }
+
+    /// Sets the track number
+    pub fn set_track_number(&mut self, track_nr: u32) -> Result<()> {
+        match self {
+            Self::Id3Tag { inner } => inner.set_track(track_nr),
+            Self::VorbisFlacTag { inner } => {
+                inner.set_vorbis("TRACKNUMBER", vec![track_nr.to_string()])
+            }
+            Self::Mp4Tag { inner } => inner.set_track_number(track_nr.try_into()?),
+            Self::OpusTag { inner } => {
+                inner.remove_entries(&"TRACKNUMBER".into());
+                inner.add_one("TRACKNUMBER".into(), track_nr.to_string());
+            }
+            Self::OggTag { inner } => {
+                inner.comments.remove("TRACKNUMBER");
+                inner
+                    .comments
+                    .insert("TRACKNUMBER".into(), vec![track_nr.to_string()]);
+            }
+        }
+
+        Ok(())
     }
 
     /// Copies the information of this [`Tag`] to another. The target [`Tag`] can be any of the
