@@ -48,6 +48,8 @@ pub enum Error {
     /// An unspecified I/O error occurred.
     IoError(std::io::Error),
     TryFromIntError(std::num::TryFromIntError),
+    TryFromU16Error(u16),
+    TryFromU32Error(u32),
 }
 
 impl Display for Error {
@@ -70,6 +72,13 @@ impl Display for Error {
             ),
             Error::TryFromIntError(_) => f.write_str(
                 "An error occurred while converting between integer types. Please see num::TryFromIntError for more info.",
+            ),
+
+            Error::TryFromU16Error(_) => f.write_str(
+                "An error occurred while converting between integer types. Please see num::TryFromU16Error for more info.",
+            ),
+            Error::TryFromU32Error(_) => f.write_str(
+                "An error occurred while converting between integer types. Please see num::TryFromU32Error for more info.",
             ),
         }
     }
@@ -114,6 +123,24 @@ impl From<std::io::Error> for Error {
 impl From<std::num::TryFromIntError> for Error {
     fn from(value: std::num::TryFromIntError) -> Self {
         Self::TryFromIntError(value)
+    }
+}
+
+impl From<std::convert::Infallible> for Error {
+    fn from(value: std::convert::Infallible) -> Self {
+        match value {}
+    }
+}
+
+impl From<u16> for Error {
+    fn from(value: u16) -> Self {
+        Self::TryFromU16Error(value)
+    }
+}
+
+impl From<u32> for Error {
+    fn from(value: u32) -> Self {
+        Self::TryFromU32Error(value)
     }
 }
 
@@ -799,6 +826,9 @@ impl Tag {
     }
 
     /// Sets the track number
+    /// # Errors
+    /// This function will error if the track number is too large to fit in the format's track
+    /// number field.
     pub fn set_track_number(&mut self, track_nr: u32) -> Result<()> {
         match self {
             Self::Id3Tag { inner } => inner.set_track(track_nr),
@@ -815,6 +845,29 @@ impl Tag {
                 inner
                     .comments
                     .insert("TRACKNUMBER".into(), vec![track_nr.to_string()]);
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Sets the track's BPM
+    /// # Errors
+    /// This function will error if the BPM is too large to fit in the format's BPM field.
+    pub fn set_bpm(&mut self, bpm: u16) -> Result<()> {
+        match self {
+            Self::Id3Tag { inner } => inner.set_bpm(u32::from(bpm)),
+            Self::VorbisFlacTag { inner } => inner.set_vorbis("BPM", vec![bpm.to_string()]),
+            Self::Mp4Tag { inner } => inner.set_bpm(bpm),
+            Self::OpusTag { inner } => {
+                inner.remove_entries(&"BPM".into());
+                inner.remove_entries(&"TEMPO".into());
+                inner.add_one("BPM".into(), bpm.to_string());
+                inner.add_one("TEMPO".into(), bpm.to_string());
+            }
+            Self::OggTag { inner } => {
+                inner.comments.remove("BPM");
+                inner.comments.insert("BPM".into(), vec![bpm.to_string()]);
             }
         }
 
