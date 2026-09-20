@@ -9,7 +9,7 @@ homepage = "https://karx.xyz/projects/multitag"
 readme = "README.md"
 
 [dependencies]
-id3 = { git = "https://codeberg.org/tomkoid/rust-id3.git", rev = "ba9fb66af8c83201b11c2846c149e54b06235c26" } 
+id3 = { git = "https://codeberg.org/tomkoid/rust-id3.git" }
 # id3 = { path = "../rust-id3" } 
 mp4ameta = "0.13.0"
 metaflac = "0.2.8"

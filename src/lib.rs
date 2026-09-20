@@ -6,6 +6,7 @@ use data::{Album, Picture, Timestamp};
 use id3::Tag as Id3InternalTag;
 use id3::TagLike;
 use metaflac::Tag as FlacInternalTag;
+use mp4ameta::FreeformIdent;
 use mp4ameta::Tag as Mp4InternalTag;
 use oggmeta::Tag as OggInternalTag;
 use opusmeta::Tag as OpusInternalTag;
@@ -833,7 +834,7 @@ impl Tag {
         match self {
             Self::Id3Tag { inner } => inner.set_track(track_nr),
             Self::VorbisFlacTag { inner } => {
-                inner.set_vorbis("TRACKNUMBER", vec![track_nr.to_string()])
+                inner.set_vorbis("TRACKNUMBER", vec![track_nr.to_string()]);
             }
             Self::Mp4Tag { inner } => inner.set_track_number(track_nr.try_into()?),
             Self::OpusTag { inner } => {
@@ -872,6 +873,26 @@ impl Tag {
         }
 
         Ok(())
+    }
+
+    /// Sets the track's key
+    pub fn set_key(&mut self, key: impl Into<String>) {
+        match self {
+            Self::Id3Tag { inner } => inner.set_key(key),
+            Self::VorbisFlacTag { inner } => inner.set_vorbis("INITIALKEY", vec![key]),
+            Self::Mp4Tag { inner } => {
+                let initialkey_ident = FreeformIdent::new_static("com.apple.iTunes", "initialkey");
+                inner.set_data(initialkey_ident, mp4ameta::Data::Utf8(key.into().clone()));
+            }
+            Self::OpusTag { inner } => {
+                inner.remove_entries(&"INITIALKEY".into());
+                inner.add_one("INITIALKEY".into(), key.into());
+            }
+            Self::OggTag { inner } => {
+                inner.comments.remove("INITIALKEY");
+                inner.comments.insert("INITIALKEY".into(), vec![key.into()]);
+            }
+        }
     }
 
     /// Copies the information of this [`Tag`] to another. The target [`Tag`] can be any of the
